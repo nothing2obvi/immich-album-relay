@@ -1,0 +1,8 @@
+# Used together with compose.yml, exclusively in the private deployment directory.
+services:
+  relay:
+    image: immich-album-relay-test:local
+    container_name: immich-album-relay_test
+volumes:
+  relay-state:
+    name: immich-album-relay_test-state

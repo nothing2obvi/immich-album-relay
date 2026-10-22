@@ -1,0 +1,108 @@
+# Copy to config.yml. UUIDs below are fictional: replace with your real IDs.
+# Secrets expand inside YAML string values; missing environment variables fail startup.
+immich_url: ${IMMICH_URL}
+# Timezone priority: per-job cron.timezone > cron.timezone > timezone > TZ > UTC.
+# Omit timezone to use the TZ environment variable for scheduling AND log timestamps.
+# timezone: America/Phoenix
+state_dir: /data
+# Safe preview of all executions, including scheduled ones. Turn off after reviewing a dry-run.
+dry_run: true
+
+users:
+  alex:
+    id: 11111111-1111-4111-8111-111111111111
+    name: Alex
+    api_key: ${IMMICH_ALEX_API_KEY}
+  sam:
+    id: 22222222-2222-4222-8222-222222222222
+    name: Sam
+    api_key: ${IMMICH_SAM_API_KEY}
+
+destinations:
+  family:
+    id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+    name: Family Photos
+    # Optional read/validation credential; writes ALWAYS use each source user's key.
+    user: alex
+  holidays:
+    id: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+    name: Holidays
+    user: alex
+
+cron:
+  enabled: true                 # Master switch; false disables cron for all jobs.
+  expression: '0 3 * * *'       # Standard five fields, at 03:00 in the effective timezone.
+  # timezone: America/Phoenix
+polling:
+  enabled: true                 # Independent of cron; no webhook endpoint is exposed.
+  interval_seconds: 60
+  debounce_seconds: 10          # Wait for membership to settle; checked on each poll.
+  reconcile_seconds: 3600       # Repair destination changes even if sources are unchanged.
+
+http:
+  timeout_seconds: 30
+  retries: 3                   # Additional attempts after initial request.
+  backoff_seconds: 1
+  max_retry_delay_seconds: 60
+  batch_size: 200
+  page_size: 500
+
+logging:
+  level: INFO                  # DEBUG, INFO, WARNING, ERROR
+  # file: /data/logs/relay.log  # Optional rotating file, in addition to stdout.
+  max_bytes: 10485760
+  backup_count: 3
+
+ntfy:
+  enabled: false
+  server_url: https://ntfy.sh
+  topic: ''
+  # token: ${NTFY_TOKEN}       # Bearer token; alternatively username + password.
+  # username: ${NTFY_USERNAME}
+  # password: ${NTFY_PASSWORD}
+  priority: 3
+  triggers: [cron, polling, manual]
+  on_success: true
+  on_failure: true
+  on_no_changes: false
+
+jobs:
+  - id: family-photos
+    name: Family Photos
+    enabled: true
+    destinations: [family, holidays]
+    sources:
+      - user: alex
+        albums:
+          - id: cccccccc-cccc-4ccc-8ccc-cccccccccccc
+            name: Alex's Family Uploads
+          - id: dddddddd-dddd-4ddd-8ddd-dddddddddddd
+            name: Alex's Trips
+      - user: sam
+        albums:
+          - id: eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee
+            name: Sam's Family Uploads
+    # Optional per-job overrides (master switches above still apply).
+    cron:
+      enabled: true
+      expression: '*/30 * * * *'
+      # timezone: America/Phoenix
+    polling:
+      enabled: true
+      interval_seconds: 120
+    ntfy:
+      on_no_changes: false
+
+  - id: weekend-holidays
+    name: Weekend Holiday Collection
+    enabled: false
+    destinations: [holidays]
+    sources:
+      - user: sam
+        albums:
+          - id: eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee
+            name: Sam's Family Uploads
+    cron:
+      expression: '0 9 * * 6'
+    polling:
+      enabled: false

@@ -1,0 +1,22 @@
+services:
+  relay:
+    image: immich-album-relay:local
+    build: .
+    container_name: immich-album-relay
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 2m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    env_file: .env
+    environment:
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./config.yml:/config/config.yml:ro
+      - relay-state:/data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+volumes:
+  relay-state:

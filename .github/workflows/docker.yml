@@ -1,0 +1,20 @@
+name: Local-style multiarchitecture build (publication disabled)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: false
+          outputs: type=oci,dest=/tmp/immich-album-relay.oci.tar
+      # Publishing intentionally disabled. A future, explicitly authorized change can
+      # add registry authentication, packages:write, approved tags and push:true.

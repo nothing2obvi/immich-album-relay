@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=78"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "immich-album-relay"
+version = "0.1.0"
+description = "Additive, multi-user Immich album membership relay"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = ["PyYAML>=6.0.2,<7", "pydantic>=2.10,<3", "croniter>=6,<7", "tzdata>=2025.1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
+
+[project.scripts]
+immich-album-relay = "immich_album_relay.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP"]
