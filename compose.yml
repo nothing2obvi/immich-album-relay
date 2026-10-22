@@ -1,6 +1,6 @@
 services:
   relay:
-    image: immich-album-relay:local
+    image: ghcr.io/nothing2obvi/immich-album-relay:v0.1
     build: .
     container_name: immich-album-relay
     init: true

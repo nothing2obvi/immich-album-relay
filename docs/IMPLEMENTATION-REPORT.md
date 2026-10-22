@@ -13,9 +13,6 @@ timezone-aware redacted logs with optional rotating files; optional ntfy.
 application timezone overrides TZ for logs/cron; global and per-job cron timezone
 settings override schedule defaults. Invalid names fail startup.
 
-Main repository: `/Users/joncasas/GitHub/immich-album-relay`.
-Private deployment: `/Users/joncasas/GitHub/immich-album-relay_test`.
-
 New files include `src/immich_album_relay/`, `tests/`, Dockerfile, Compose production
 and test definitions, config/env examples, dependency metadata and locks,
 `scripts/` for deployment/synchronization/builds/smoke checks, README, MIT LICENSE,
@@ -74,9 +71,10 @@ separator. A private backup is retained beside the private configuration. `.env`
 permissions are owner-only. No private configuration or credentials were copied
 into this repository.
 
-Repository, documentation, MIT license and workflows are prepared locally for
-review. Live read-only validation and deployment are verified; actual additive-write
-integration remains deferred while the private configuration is in dry-run mode.
-There is no configured remote and nothing has been pushed or published. The Docker
-workflow explicitly uses `push: false`. Remote publication requires explicit owner
-authorization.
+## Release preparation
+
+The v0.1 release includes a concise README, TZ-based default configuration,
+MIT license, and a tag-triggered GHCR publication workflow. The workflow runs the
+Python test matrix before publishing Linux AMD64 and ARM64 images. Live read-only
+validation is verified; actual additive-write integration remains deferred while
+the private configuration is in dry-run mode.

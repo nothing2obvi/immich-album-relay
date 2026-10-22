@@ -1,7 +1,6 @@
 # Immich API compatibility and event research
 
-Checked October 21, 2026 against the local reference checkout at
-`/Users/joncasas/GitHub/immich` (server package version 3.2.0), and the official
+Checked October 21, 2026 against a local `immich` reference checkout (server package version 3.2.0), and the official
 v3.3.0 source tag. The installed local Immich and test container image labels
 report v3.3.0. An authenticated live test is still required for an installation
 before claiming live compatibility. Container image labels alone do not verify

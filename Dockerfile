@@ -6,7 +6,8 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.lock && \
     pip install --no-cache-dir --no-deps --prefix=/install .
 
 FROM python:3.13-slim
-LABEL org.opencontainers.image.title="immich-album-relay" \
+LABEL org.opencontainers.image.source="https://github.com/nothing2obvi/immich-album-relay" \
+      org.opencontainers.image.title="immich-album-relay" \
       org.opencontainers.image.description="Additive multi-user Immich album membership relay" \
       org.opencontainers.image.licenses="MIT"
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 TZ=UTC

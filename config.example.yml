@@ -1,9 +1,8 @@
 # Copy to config.yml. UUIDs below are fictional: replace with your real IDs.
 # Secrets expand inside YAML string values; missing environment variables fail startup.
 immich_url: ${IMMICH_URL}
-# Timezone priority: per-job cron.timezone > cron.timezone > timezone > TZ > UTC.
-# Omit timezone to use the TZ environment variable for scheduling AND log timestamps.
-# timezone: America/Phoenix
+# Set TZ in .env for scheduling and log timestamps (UTC if unset).
+# Optional per-job timezone overrides are documented in docs/CONFIGURATION.md.
 state_dir: /data
 # Safe preview of all executions, including scheduled ones. Turn off after reviewing a dry-run.
 dry_run: true
@@ -34,7 +33,6 @@ destinations:
 cron:
   enabled: true                 # Master switch; false disables cron for all jobs.
   expression: '0 3 * * *'       # Standard five fields, at 03:00 in the effective timezone.
-  # timezone: America/Phoenix
 polling:
   enabled: true                 # Independent of cron; no webhook endpoint is exposed.
   interval_seconds: 60
@@ -89,7 +87,6 @@ jobs:
     cron:
       enabled: true
       expression: '*/30 * * * *'
-      # timezone: America/Phoenix
     polling:
       enabled: true
       interval_seconds: 120
