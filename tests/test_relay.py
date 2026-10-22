@@ -110,3 +110,47 @@ def test_large_album_batching(config, fake):
     assert report.ok
     assert max(len(ids) for _, _, ids in fake.calls) <= 100
     assert len(fake.albums[D1]) == 2503
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_destinations_with_independent_read_only_owner_credentials(config, fake, dry_run):
+    from types import SimpleNamespace
+
+    from immich_album_relay.config import User
+
+    owners = {"family_owner": D1, "holiday_owner": D2}
+    for number, ref in enumerate(owners, start=3):
+        config.users[ref] = User(
+            id=f"{number:08d}-0000-4000-8000-000000000000", api_key=f"fictional-read-only-{ref}"
+        )
+    config.destinations["family"].user = "family_owner"
+    config.destinations["holidays"].user = "holiday_owner"
+    metadata_reads = []
+
+    def factory(ref):
+        client = fake.client(ref)
+        if ref not in owners:
+            return client
+
+        def album(album_id, editor=False):
+            assert str(album_id) == owners[ref]
+            assert not editor
+            metadata_reads.append((ref, str(album_id)))
+            return client.album(album_id)
+
+        # These accounts cannot search assets or add memberships.
+        return SimpleNamespace(identity=client.identity, version=client.version, album=album)
+
+    relay = Relay(config, client_factory=factory)
+    relay.validate()
+    report = relay.execute(config.jobs[0], dry_run=dry_run)
+    assert report.ok
+    assert metadata_reads == list(owners.items()) * 2
+    if dry_run:
+        assert sum(row.would_add for row in report.rows) == 6
+        assert not fake.calls
+    else:
+        assert report.added == 6
+        assert set(fake.albums[D1]) == set(fake.albums[D2]) == {A1, A2, A3}
+        assert {ref for ref, _, _ in fake.calls} == {"alex", "sam"}
+        assert all((ref == "sam") == (A2 in ids) for ref, _, ids in fake.calls)

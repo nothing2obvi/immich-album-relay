@@ -118,7 +118,7 @@ class CronOverride(Model):
 
 class Cron(CronOverride):
     enabled: bool = True
-    expression: str = "0 3 * * *"
+    expression: str = "0 * * * *"
 
 
 class PollOverride(Model):

@@ -28,11 +28,12 @@ destinations:
   holidays:
     id: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
     name: Holidays
-    user: alex
+    # Destinations may belong to different users; this entry uses Sam's key.
+    user: sam
 
 cron:
   enabled: true                 # Master switch; false disables cron for all jobs.
-  expression: '0 3 * * *'       # Standard five fields, at 03:00 in the effective timezone.
+  expression: '0 * * * *'       # Every hour, at minute 0.
 polling:
   enabled: true                 # Independent of cron; no webhook endpoint is exposed.
   interval_seconds: 60
@@ -86,7 +87,7 @@ jobs:
     # Optional per-job overrides (master switches above still apply).
     cron:
       enabled: true
-      expression: '*/30 * * * *'
+      # expression: '*/15 * * * *'  # Optional override; otherwise inherits hourly default.
     polling:
       enabled: true
       interval_seconds: 120

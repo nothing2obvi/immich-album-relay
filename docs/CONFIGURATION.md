@@ -33,6 +33,14 @@ name from each job's `destinations` list. Labels help humans; UUIDs select album
 A destination's optional `user` credential validates existence/readability;
 **all writes still use the contributing source user's key**.
 
+One job can target albums owned by different people. Give each destination its
+own optional `user` reference: for example, `family.user: alex` and
+`holidays.user: sam`, then set the job's `destinations: [family, holidays]`.
+Both user entries belong under `users`, with their keys referenced from `.env`.
+A separate read-only account can also be defined under `users` and used only as
+a destination's `user`. Every contributing source user must be an owner or editor
+of **both** destination albums; owner metadata credentials do not replace that access.
+
 Jobs have unique safe IDs, optional names, enabled flags, sources and destinations.
 Users/albums/destinations can be reused across jobs. Each user's source albums
 should be combined in one source entry per job. Repeated assets across source
@@ -56,7 +64,7 @@ destination, they must be the owner or an explicitly invited **editor**, not a
 viewer or anonymous public-link visitor. Immich additionally checks whether the
 asset can be shared. Source ownership is checked locally; the server makes the
 final decision. These permissions are based on the source implementation described
-in [API-COMPATIBILITY.md](docs/API-COMPATIBILITY.md).
+in [API-COMPATIBILITY.md](API-COMPATIBILITY.md).
 
 Discover accessible album UUIDs and sharing roles after configuring your user ID:
 
@@ -73,7 +81,8 @@ actual run. An HTTP 403 or per-asset `no_permission` result gives a clear failur
 
 Cron uses standard five-field expressions: minute, hour, day of month, month,
 day of week. Both day fields follow conventional OR semantics when constrained.
-Examples: `0 3 * * *` daily at 03:00, `*/15 * * * *` every 15 minutes.
+The default is `0 * * * *`: every hour at minute 0. Jobs inherit this schedule
+unless they specify an expression. For example, `*/15 * * * *` runs every 15 minutes.
 Set `cron.enabled: false` to disable cron globally. Per-job cron settings override
 the expression/timezone and may disable a job's cron, but cannot bypass the master
 switch. A job with `enabled: false` is excluded from every execution method.
