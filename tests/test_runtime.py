@@ -72,3 +72,86 @@ def test_health_requires_fresh_heartbeat(tmp_path, monkeypatch):
     assert healthcheck(tmp_path) == 0
     monkeypatch.setattr(time, "time", lambda: (tmp_path / "heartbeat").stat().st_mtime + 31)
     assert healthcheck(tmp_path) == 1
+
+
+@pytest.mark.parametrize(
+    "global_enabled,job_enabled,enabled,dry_run,expected",
+    [
+        (True, True, True, False, 1),
+        (False, True, True, False, 0),
+        (True, False, True, False, 0),
+        (True, True, False, False, 0),
+        (True, True, True, True, 1),
+    ],
+)
+def test_startup_execution_independent_of_cron_and_polling(
+    config, fake, monkeypatch, global_enabled, job_enabled, enabled, dry_run, expected
+):
+    import threading
+
+    from immich_album_relay.relay import Relay
+    from immich_album_relay.scheduler import serve
+
+    class Stop(threading.Event):
+        ticks = 0
+
+        def wait(self, timeout=None):
+            self.ticks += 1
+            if self.ticks >= 20:
+                self.set()
+            return super().wait(0.01)
+
+    config.run_on_startup = global_enabled
+    config.jobs[0].run_on_startup = job_enabled
+    config.jobs[0].enabled = enabled
+    config.cron.enabled = config.polling.enabled = False
+    config.dry_run = dry_run
+    stop = Stop()
+    relay = Relay(config, stop, client_factory=fake.client)
+    reports = []
+    execute = relay.execute
+
+    def record(*args, **kwargs):
+        report = execute(*args, **kwargs)
+        reports.append(report)
+        return report
+
+    monkeypatch.setattr(relay, "execute", record)
+    serve(relay, stop)
+    assert len(reports) == expected
+    assert all(r.trigger == "startup" and r.ok and r.dry_run == dry_run for r in reports)
+    if dry_run or not expected:
+        assert not fake.calls
+    assert not (config.state_dir / "heartbeat").exists()
+
+
+def test_startup_coalesces_initial_cron_and_polling(config, fake, monkeypatch):
+    import threading
+
+    from immich_album_relay.relay import Relay
+    from immich_album_relay.scheduler import serve
+
+    class Stop(threading.Event):
+        ticks = 0
+
+        def wait(self, timeout=None):
+            self.ticks += 1
+            if self.ticks >= 20:
+                self.set()
+            return super().wait(0.01)
+
+    config.cron.expression = "* * * * *"
+    config.polling.interval_seconds = 60
+    stop = Stop()
+    relay = Relay(config, stop, client_factory=fake.client)
+    triggers = []
+    execute = relay.execute
+
+    def record(*args, **kwargs):
+        report = execute(*args, **kwargs)
+        triggers.append(report.trigger)
+        return report
+
+    monkeypatch.setattr(relay, "execute", record)
+    serve(relay, stop)
+    assert triggers == ["startup"]

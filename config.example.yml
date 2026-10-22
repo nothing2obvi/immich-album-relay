@@ -7,6 +7,8 @@ immich_url: ${IMMICH_URL}
 state_dir: /data
 # Safe preview of all executions, including scheduled ones. Turn off after reviewing a dry-run.
 dry_run: true
+# Execute enabled jobs once whenever serve starts (including container restarts).
+run_on_startup: true
 
 users:
   alex:
@@ -61,7 +63,7 @@ ntfy:
   # username: ${NTFY_USERNAME}
   # password: ${NTFY_PASSWORD}
   priority: 3
-  triggers: [cron, polling, manual]
+  triggers: [startup, cron, polling, manual]
   on_success: true
   on_failure: true
   on_no_changes: false
@@ -70,6 +72,7 @@ jobs:
   - id: family-photos
     name: Family Photos
     enabled: true
+    # run_on_startup: false     # Optional opt-out for this job only.
     destinations: [family, holidays]
     sources:
       - user: alex

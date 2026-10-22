@@ -86,6 +86,22 @@ def serve(relay, stop=None):
             next_poll = {job.id: 0.0 for job in jobs}
             futures = {}
             queued_cron = {}
+            startup_pending = {job.id for job in jobs if config.run_on_startup and job.run_on_startup}
+
+            def startup(job):
+                fingerprint = None
+                if config.detection(job).enabled:
+                    try:
+                        # Capture before execution: changes during the run must be detected by later polls.
+                        fingerprint = relay.fingerprint(job)
+                    except RelayError as error:
+                        log.warning("Job %s | Startup fingerprint failed: %s", job.id, error)
+                report = relay.execute(job, trigger="startup")
+                if report.ok and fingerprint is not None:
+                    tracker = trackers[job.id]
+                    tracker.observed = fingerprint
+                    tracker.changed_at = time.monotonic()
+                    tracker.success(fingerprint, time.monotonic())
 
             def poll(job):
                 settings = config.detection(job)
@@ -124,11 +140,15 @@ def serve(relay, stop=None):
                                 del futures[job.id]
                                 active = None
                             schedule = config.schedule(job)
-                            if cron.due(job.id, schedule, now):
+                            if cron.due(job.id, schedule, now) and job.id not in startup_pending:
                                 queued_cron[job.id] = now.replace(second=0, microsecond=0).isoformat()
                             if active:
                                 continue
-                            if job.id in queued_cron:
+                            if job.id in startup_pending:
+                                startup_pending.remove(job.id)
+                                next_poll[job.id] = tick + config.detection(job).interval_seconds
+                                futures[job.id] = workers.submit(startup, job)
+                            elif job.id in queued_cron:
                                 scheduled_at = queued_cron.pop(job.id)
                                 futures[job.id] = workers.submit(
                                     relay.execute, job, "cron", False, scheduled_at

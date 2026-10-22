@@ -140,7 +140,7 @@ class NtfyOverride(Model):
     on_success: bool | None = None
     on_failure: bool | None = None
     on_no_changes: bool | None = None
-    triggers: list[Literal["cron", "polling", "manual"]] | None = None
+    triggers: list[Literal["cron", "polling", "manual", "startup"]] | None = None
 
 
 class Ntfy(NtfyOverride):
@@ -154,7 +154,7 @@ class Ntfy(NtfyOverride):
     on_success: bool = True
     on_failure: bool = True
     on_no_changes: bool = False
-    triggers: list[Literal["cron", "polling", "manual"]] = ["cron", "polling", "manual"]
+    triggers: list[Literal["cron", "polling", "manual", "startup"]] = ["cron", "polling", "manual", "startup"]
     _url = field_validator("server_url")(http_url)
 
     @model_validator(mode="after")
@@ -190,6 +190,7 @@ class Job(Model):
     id: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
     name: str = ""
     enabled: bool = True
+    run_on_startup: bool = True
     destinations: list[str] = Field(min_length=1)
     sources: list[Source] = Field(min_length=1)
     cron: CronOverride = Field(default_factory=CronOverride)
@@ -206,6 +207,7 @@ class Config(Model):
     timezone: str = Field(default_factory=lambda: os.environ.get("TZ", "UTC"))
     state_dir: Path = Path("/data")
     dry_run: bool = False
+    run_on_startup: bool = True
     users: dict[str, User] = Field(min_length=1)
     destinations: dict[str, Destination] = Field(min_length=1)
     jobs: list[Job] = Field(min_length=1)

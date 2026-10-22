@@ -148,7 +148,18 @@ asset IDs, and run only relevant jobs after membership settles for
 `debounce_seconds`. With an interval of 60 and debounce of 10, a stable new change
 usually runs on the following poll (about 60–120 seconds after the change).
 
-The first poll after every restart reconciles sources after debounce. Successful
+`run_on_startup: true` (the default) executes every enabled job once as soon as
+`serve` starts, including the initial container launch and each restart. Set it to
+`false` globally to disable these runs, or set `run_on_startup: false` on a job to
+opt that job out. Startup runs work independently of cron and polling, honor
+`dry_run`, share the normal per-job lock, and log the `startup` trigger. Commands
+such as `validate` and `list-albums` do not trigger a startup run. A cron tick in
+the startup minute is covered by the startup run. Successful startup runs establish
+the polling baseline from a fingerprint taken before execution, avoiding a redundant
+initial polling run while detecting changes made during startup.
+
+When startup runs are disabled, the first poll after restart reconciles sources
+after debounce. Successful
 runs checkpoint only in memory; failed/partial runs retry even if sources do not
 change. `reconcile_seconds` forces periodic reconciliation to repair destination
 changes without requiring a source edit. There is no persistent membership cache
@@ -163,8 +174,8 @@ cron occurrences; polling performs reconciliation. A skipped DST wall-clock time
 is skipped; a repeated DST time runs at both UTC occurrences. A backward wall clock
 adjustment does not replay minutes already seen by a running scheduler.
 
-With both automatic modes disabled, `serve` stays healthy and idle; use manual
-runs. All methods remain additive: removing an asset from its source does not
+With cron, polling and startup runs disabled, `serve` stays healthy and idle;
+use manual runs. All methods remain additive: removing an asset from its source does not
 remove its destination membership. Deleting the underlying Immich asset can still
 affect its availability in every album. Cross-album chains converge through
 idempotent additions; no webhook feedback loop exists.
@@ -204,7 +215,9 @@ ntfy is disabled by default. Configure `ntfy.enabled`, `server_url`, `topic`,
 `priority` (1–5), and optionally an environment-referenced Bearer `token` or
 `username`/`password`. Job overrides control enabled, triggers, success/failure,
 and unchanged-run notifications. The global enabled flag is a master switch.
-Supported triggers are `manual`, `cron`, and `polling`. Notifications include job,
+Supported triggers are `manual`, `cron`, `polling`, and `startup`. Add `startup`
+to an existing explicit `ntfy.triggers` list if startup notifications are desired;
+the default trigger list includes it. Notifications include job,
 status, trigger, users, source/destination rows, totals and bounded error summaries.
 No-change success notifications are suppressed unless `on_no_changes: true`.
 Failures can notify with zero additions; ntfy delivery failure never fails a

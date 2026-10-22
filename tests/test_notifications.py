@@ -46,3 +46,13 @@ def test_per_job_notification_override(config, fake, monkeypatch):
     monkeypatch.setattr("immich_album_relay.relay.Transport.request", lambda *a, **k: calls.append(a))
     assert Relay(config, client_factory=fake.client).execute(config.jobs[0]).ok
     assert not calls
+
+
+def test_startup_notifications_supported_by_default(config, fake, monkeypatch):
+    config.ntfy.enabled = True
+    config.ntfy.topic = "test-topic"
+    calls = []
+    monkeypatch.setattr("immich_album_relay.relay.Transport.request", lambda *a, **k: calls.append(a))
+    assert Relay(config, client_factory=fake.client).execute(config.jobs[0], trigger="startup").ok
+    assert len(calls) == 1
+    assert "Trigger: startup" in calls[0][4]["message"]

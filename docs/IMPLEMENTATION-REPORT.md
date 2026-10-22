@@ -30,7 +30,7 @@ committing and is required after completed development changes.
 
 ## Verification
 
-- 74 automated tests pass, including a real HTTP/CLI integration test against a
+- 82 automated tests pass, including a real HTTP/CLI integration test against a
   local fake Immich server; no live credentials are needed.
 - Ruff lint and formatting checks pass; shell syntax and dependency lock checks pass.
 - Local Linux AMD64 and ARM64 image builds and command/import/timezone checks pass.
@@ -46,8 +46,8 @@ The supplied Immich reference checkout reports package 3.2.0; installed local
 Immich image labels report v3.3.0. The implementation targets the v3.2/v3.3
 structured album search API and source-user additions to shared destinations.
 See [API-COMPATIBILITY.md](API-COMPATIBILITY.md) for verified source definitions,
-permissions and limitations. Runtime authentication and permissions remain
-unverified until private configuration is supplied.
+permissions and limitations. Read-only validation now passes against the private Immich 3.3.0 server for
+both configured users and all enabled-job source/destination album reads and roles.
 
 Inspected workflow trigger definitions do not include an album-membership event.
 Automatic detection therefore uses polling of actual configured album membership,
@@ -55,15 +55,28 @@ not upload/tag webhooks or unsupported database/socket integrations.
 
 ## Outstanding and publication status
 
-Private `config.yml` and `.env` are absent. The deploy script reports this condition
-and exits 2 after building; **`immich-album-relay_test` has not been started or
-health-verified with live configuration**. Authenticated API validation, a private
-dry-run and any live additive integration test remain pending. No IDs or keys have
-been invented for the private deployment. The separately isolated smoke check uses
-clearly fictional, disabled configuration and makes no Immich requests.
+Private configuration is now supplied. Read-only validation passes against Immich
+3.3.0 for both configured user keys. A live dry-run finds two missing memberships,
+one from each source user, with zero failures. `dry_run: true` remains enabled;
+no live memberships were changed. Actual write scopes/per-asset sharing permission
+remain untested until live writes are deliberately enabled.
+
+The application is synchronized and the native private Docker image rebuilt.
+`immich-album-relay_test` was recreated and is running healthy on the current image.
+Default-enabled `run_on_startup` was verified through successful dry-run startup
+executions both on initial launch and after an actual container restart (two
+startup completions). Global and per-job opt-outs are documented and tested, as
+are startup notifications, dry-run preservation and coalescing initial triggers.
+
+Private configuration repairs were limited to wrapping a destination reference in
+a list, removing unused broken example definitions, and correcting a URL port
+separator. A private backup is retained beside the private configuration. `.env`
+permissions are owner-only. No private configuration or credentials were copied
+into this repository.
 
 Repository, documentation, MIT license and workflows are prepared locally for
-review. Final live validation is still pending, so full completion is not claimed.
+review. Live read-only validation and deployment are verified; actual additive-write
+integration remains deferred while the private configuration is in dry-run mode.
 There is no configured remote and nothing has been pushed or published. The Docker
 workflow explicitly uses `push: false`. Remote publication requires explicit owner
 authorization.

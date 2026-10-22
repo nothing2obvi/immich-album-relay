@@ -117,3 +117,12 @@ def test_global_ntfy_disable_is_a_master_switch(data):
     data["jobs"][0]["ntfy"] = {"enabled": True}
     config = Config.model_validate(data)
     assert not config.notification(config.jobs[0]).enabled
+
+
+def test_startup_runs_enabled_by_default_and_support_optout(data):
+    config = Config.model_validate(data)
+    assert config.run_on_startup and config.jobs[0].run_on_startup
+    data["run_on_startup"] = False
+    data["jobs"][0]["run_on_startup"] = False
+    config = Config.model_validate(data)
+    assert not config.run_on_startup and not config.jobs[0].run_on_startup
