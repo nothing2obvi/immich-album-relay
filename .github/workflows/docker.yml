@@ -1,5 +1,6 @@
 name: Publish Docker images
 on:
+  workflow_dispatch:
   push:
     tags: ['v*']
 permissions:
@@ -31,10 +32,12 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ${{ github.ref_type == 'tag' && format('ghcr.io/{0}:{1}', github.repository, github.ref_name) || '' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.version=${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
