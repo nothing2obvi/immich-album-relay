@@ -59,14 +59,14 @@ Use the same `.env` and `config.yml` prepared above. The image supports AMD64 an
 docker run --rm --init --read-only --env-file .env \
   -v "$PWD/config.yml:/config/config.yml:ro" \
   -v immich-album-relay_relay-state:/data \
-  ghcr.io/nothing2obvi/immich-album-relay:v0.1 \
+  ghcr.io/nothing2obvi/immich-album-relay:v0.1.1 \
   run --job family-photos --dry-run
 
 # Run one job; config.yml must have dry_run: false to make additions.
 docker run --rm --init --read-only --env-file .env \
   -v "$PWD/config.yml:/config/config.yml:ro" \
   -v immich-album-relay_relay-state:/data \
-  ghcr.io/nothing2obvi/immich-album-relay:v0.1 \
+  ghcr.io/nothing2obvi/immich-album-relay:v0.1.1 \
   run --job family-photos
 ```
 

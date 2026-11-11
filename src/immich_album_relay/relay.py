@@ -15,6 +15,8 @@ from .runtime import lock
 
 log = logging.getLogger(__name__)
 
+type SourceAlbum = tuple[str, str]
+
 
 @dataclass
 class Row:
@@ -38,6 +40,7 @@ class Report:
     rows: list[Row] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     duration: float = 0
+    completed_albums: set[SourceAlbum] = field(default_factory=set)
 
     @property
     def added(self):
@@ -103,17 +106,29 @@ class Relay:
             "Validation passed; write scopes and per-asset sharing permissions are confirmed only by an actual run"
         )
 
-    def fingerprint(self, job):
-        members = []
+    def fingerprints(self, job):
+        members = {}
         for source in job.sources:
             client = self.client_factory(source.user)
-            client.identity()
+            try:
+                client.identity()
+            except RelayError as error:
+                log.error("Job %s | Polling | Source user %s: %s", job.id, source.user, error)
+                continue
             for album in source.albums:
-                client.album(album.id)
-                members.append((source.user, str(album.id), sorted(client.assets(album.id))))
-        return hashlib.sha256(json.dumps(members, sort_keys=True).encode()).hexdigest()
+                try:
+                    # Album-confined search also checks album.read on the requested album.
+                    asset_ids = sorted(client.assets(album.id))
+                except RelayError as error:
+                    log.error(
+                        "Job %s | Polling | Source user %s | Album %s (%s): %s",
+                        job.id, source.user, album.name or "source", album.id, error,
+                    )
+                    continue
+                members[source.user, str(album.id)] = hashlib.sha256(json.dumps(asset_ids).encode()).hexdigest()
+        return members
 
-    def execute(self, job, trigger="manual", dry_run=False, scheduled_at=None):
+    def execute(self, job, trigger="manual", dry_run=False, scheduled_at=None, *, albums=None):
         report = Report(job.id, job.name or job.id, trigger, dry_run or self.config.dry_run)
         started = time.monotonic()
         try:
@@ -127,7 +142,7 @@ class Relay:
                     datetime.now(UTC).isoformat(),
                     report.dry_run,
                 )
-                self._execute(job, report)
+                self._execute(job, report, albums)
         except RelayError as error:
             report.errors.append(str(error))
         except Exception:
@@ -150,7 +165,7 @@ class Relay:
         self.notify(job, report)
         return report
 
-    def _execute(self, job, report):
+    def _execute(self, job, report, albums):
         invalid_destinations = set()
         for ref in job.destinations:
             dest = self.config.destinations[ref]
@@ -163,6 +178,9 @@ class Relay:
                     invalid_destinations.add(ref)
                     report.errors.append(f"Destination {dest.name or ref} ({dest.id}): {error}")
         for source in job.sources:
+            selected = [a for a in source.albums if albums is None or (source.user, str(a.id)) in albums]
+            if not selected:
+                continue
             user = self.config.users[source.user]
             user_name = user.name or source.user
             client = self.client_factory(source.user)
@@ -172,14 +190,17 @@ class Relay:
                 report.errors.append(f"{user_name}: {error}")
                 continue
             source_albums = []
-            for album in source.albums:
+            for album in selected:
                 try:
                     info = client.album(album.id)
                     assets = client.assets(album.id)
                     label = f"{info.get('albumName', album.name)} ({album.id})"
-                    source_albums.append((label, assets))
+                    source_albums.append((str(album.id), label, assets))
                 except RelayError as error:
                     report.errors.append(f"{user_name} | Source {album.name} ({album.id}): {error}")
+            if not source_albums:
+                continue
+            completed = {album_id for album_id, _, _ in source_albums} if not invalid_destinations else set()
             for ref in job.destinations:
                 if ref in invalid_destinations:
                     continue
@@ -190,9 +211,10 @@ class Relay:
                     destination_name = f"{info.get('albumName', dest.name)} ({dest.id})"
                 except RelayError as error:
                     report.errors.append(f"{user_name} | Destination {dest.name or ref} ({dest.id}): {error}")
+                    completed.clear()
                     continue
                 # Reuse destination membership across source albums to avoid duplicate writes.
-                for source_name, assets in source_albums:
+                for album_id, source_name, assets in source_albums:
                     row = Row(user_name, source_name, destination_name, found=len(assets))
                     report.rows.append(row)
                     owned = {
@@ -235,6 +257,8 @@ class Relay:
                             except RelayError as error:
                                 row.failed += len(batch)
                                 report.errors.append(f"{user_name} → {destination_name}: {error}")
+                    if row.failed:
+                        completed.discard(album_id)
                     log.info(
                         "Job %s (%s) | %s | %s → %s | Found: %d | Added: %d | Already present: %d "
                         "| Skipped (not owned): %d | Failed: %d | Would add: %d",
@@ -250,6 +274,7 @@ class Relay:
                         row.failed,
                         row.would_add,
                     )
+            report.completed_albums.update((source.user, album_id) for album_id in completed)
 
     def notify(self, job, report):
         settings = self.config.notification(job)

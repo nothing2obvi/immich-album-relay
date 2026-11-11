@@ -15,7 +15,6 @@ from zoneinfo import ZoneInfo
 
 from croniter import croniter
 
-from .api import RelayError
 from .runtime import lock
 
 log = logging.getLogger(__name__)
@@ -38,6 +37,25 @@ class PollTracker:
     def success(self, fingerprint, now):
         self.applied = fingerprint
         self.last_success = now
+
+
+def poll_job(relay, job, trackers):
+    settings = relay.config.detection(job)
+    fingerprints = relay.fingerprints(job)
+    for album in trackers.keys() - fingerprints.keys():
+        del trackers[album]
+    now = time.monotonic()
+    due = {
+        album
+        for album, fingerprint in fingerprints.items()
+        if trackers.setdefault(album, PollTracker()).due(
+            fingerprint, now, settings.debounce_seconds, settings.reconcile_seconds
+        )
+    }
+    if due:
+        report = relay.execute(job, trigger="polling", albums=due)
+        for album in due & report.completed_albums:
+            trackers[album].success(fingerprints[album], time.monotonic())
 
 
 class CronTracker:
@@ -82,39 +100,20 @@ def serve(relay, stop=None):
             heartbeat = config.state_dir / "heartbeat"
             cron = CronTracker()
             jobs = relay.selected()
-            trackers = {job.id: PollTracker() for job in jobs}
+            trackers = {job.id: {} for job in jobs}
             next_poll = {job.id: 0.0 for job in jobs}
             futures = {}
             queued_cron = {}
             startup_pending = {job.id for job in jobs if config.run_on_startup and job.run_on_startup}
 
             def startup(job):
-                fingerprint = None
-                if config.detection(job).enabled:
-                    try:
-                        # Capture before execution: changes during the run must be detected by later polls.
-                        fingerprint = relay.fingerprint(job)
-                    except RelayError as error:
-                        log.warning("Job %s | Startup fingerprint failed: %s", job.id, error)
+                # Capture before execution so later polls can detect changes during the run.
+                fingerprints = relay.fingerprints(job) if config.detection(job).enabled else {}
                 report = relay.execute(job, trigger="startup")
-                if report.ok and fingerprint is not None:
-                    tracker = trackers[job.id]
-                    tracker.observed = fingerprint
-                    tracker.changed_at = time.monotonic()
-                    tracker.success(fingerprint, time.monotonic())
-
-            def poll(job):
-                settings = config.detection(job)
-                try:
-                    fingerprint = relay.fingerprint(job)
-                    now = time.monotonic()
-                    tracker = trackers[job.id]
-                    if tracker.due(fingerprint, now, settings.debounce_seconds, settings.reconcile_seconds):
-                        report = relay.execute(job, trigger="polling")
-                        if report.ok:
-                            tracker.success(fingerprint, time.monotonic())
-                except RelayError as error:
-                    log.error("Job %s | Polling failed: %s", job.id, error)
+                now = time.monotonic()
+                for album in fingerprints.keys() & report.completed_albums:
+                    fingerprint = fingerprints[album]
+                    trackers[job.id][album] = PollTracker(fingerprint, fingerprint, now, now)
 
             log.info(
                 "Scheduler started | Timezone: %s | Automatic detection: membership polling | Jobs: %d",
@@ -155,7 +154,7 @@ def serve(relay, stop=None):
                                 )
                             elif config.detection(job).enabled and tick >= next_poll[job.id]:
                                 next_poll[job.id] = tick + config.detection(job).interval_seconds
-                                futures[job.id] = workers.submit(poll, job)
+                                futures[job.id] = workers.submit(poll_job, relay, job, trackers[job.id])
                         stop.wait(1)
                     log.info("Shutdown requested; waiting for active operations to stop")
             finally:

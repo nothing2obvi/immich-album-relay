@@ -57,6 +57,17 @@ def test_permanent_errors_not_retried_or_leaked(config, status, category):
     assert len(transport.opener.calls) == 1
 
 
+def test_album_access_error_identifies_endpoint_without_echoing_response(config):
+    body = {"message": "Not found or no album.read access", "extra": "REMOTE-SECRET"}
+    transport = Transport(config.http)
+    transport.opener = Opener([
+        HTTPError("https://example.com", 400, "Bad Request", Message(), io.BytesIO(json.dumps(body).encode())),
+    ])
+    with pytest.raises(RelayError, match=r"POST /search/metadata: Album not found or not shared") as error:
+        Immich(config, "alex", transport).assets(D1)
+    assert "REMOTE-SECRET" not in str(error.value)
+
+
 def test_bounded_retry_exhaustion(config, monkeypatch):
     config.http.retries = 2
     transport = Transport(config.http)

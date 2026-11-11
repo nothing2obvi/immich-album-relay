@@ -3,11 +3,13 @@ import time
 from datetime import UTC, datetime
 
 import pytest
+from conftest import A1, A2, A3, D1, D2, S1, S2
 
 from immich_album_relay.api import RelayError
 from immich_album_relay.config import Cron
+from immich_album_relay.relay import Relay
 from immich_album_relay.runtime import SafeFormatter, lock
-from immich_album_relay.scheduler import CronTracker, PollTracker, healthcheck, write_health
+from immich_album_relay.scheduler import CronTracker, PollTracker, healthcheck, poll_job, write_health
 
 
 def test_poll_debounce_retry_reconcile():
@@ -21,6 +23,49 @@ def test_poll_debounce_retry_reconcile():
     tracker.success("second", 20)
     assert not tracker.due("second", 21, 10, 100)
     assert tracker.due("second", 120, 10, 100)
+
+
+def test_poll_continues_after_source_400_and_syncs_that_source_on_recovery(config, fake, caplog):
+    config.polling.debounce_seconds = 0
+    fake.unreadable.add(("alex", S2))
+    relay = Relay(config, client_factory=fake.client)
+    job = config.jobs[0]
+    trackers = {}
+
+    poll_job(relay, job, trackers)
+    for dest in (D1, D2):
+        assert fake.albums[dest].keys() == {A1, A2}
+    assert f"Source user alex | Album source ({S2}): POST /search/metadata" in caplog.text
+    assert "HTTP 400" in caplog.text
+    assert relay.execute(job, trigger="cron", dry_run=True).completed_albums == {("alex", S1), ("sam", S1)}
+
+    fake.unreadable.clear()
+    poll_job(relay, job, trackers)
+    assert fake.calls[-2:] == [("alex", D1, [A3]), ("alex", D2, [A3])]
+    assert fake.albums[D1].keys() == fake.albums[D2].keys() == {A1, A2, A3}
+
+
+def test_poll_retries_failed_destination_without_rechecking_successful_sources(config, fake, monkeypatch):
+    config.polling.debounce_seconds = 0
+    fake.failures.add(("sam", D2))
+    relay = Relay(config, client_factory=fake.client)
+    job = config.jobs[0]
+    trackers = {}
+    execute = relay.execute
+    executions = []
+
+    def record(*args, **kwargs):
+        executions.append(kwargs["albums"])
+        return execute(*args, **kwargs)
+
+    monkeypatch.setattr(relay, "execute", record)
+    poll_job(relay, job, trackers)
+    assert A2 in fake.albums[D1] and A2 not in fake.albums[D2]
+    fake.failures.clear()
+    poll_job(relay, job, trackers)
+    poll_job(relay, job, trackers)
+    assert executions == [{("alex", S1), ("alex", S2), ("sam", S1)}, {("sam", S1)}]
+    assert A2 in fake.albums[D2]
 
 
 def test_tz_cron_and_same_minute_deduplication():
@@ -89,7 +134,6 @@ def test_startup_execution_independent_of_cron_and_polling(
 ):
     import threading
 
-    from immich_album_relay.relay import Relay
     from immich_album_relay.scheduler import serve
 
     class Stop(threading.Event):
@@ -128,7 +172,6 @@ def test_startup_execution_independent_of_cron_and_polling(
 def test_startup_coalesces_initial_cron_and_polling(config, fake, monkeypatch):
     import threading
 
-    from immich_album_relay.relay import Relay
     from immich_album_relay.scheduler import serve
 
     class Stop(threading.Event):

@@ -58,6 +58,7 @@ def fake(config):
         }
         calls = []
         denied = set()
+        unreadable = set()
         bad_keys = set()
         partial = {}
         missing_results = set()
@@ -84,6 +85,8 @@ def fake(config):
                     return {"id": album_id, "albumName": album_id}
 
                 def assets(self, album_id):
+                    if (ref, str(album_id)) in world.unreadable:
+                        raise RelayError("POST /search/metadata: Album not found or not shared (HTTP 400)")
                     return copy.deepcopy(world.albums[str(album_id)])
 
                 def add(self, album_id, ids):

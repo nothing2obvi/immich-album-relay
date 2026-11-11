@@ -20,6 +20,16 @@ class RelayError(RuntimeError):
     """Safe-to-log error containing no remote response bodies or credentials."""
 
 
+def bad_request_reason(error):
+    try:
+        payload = json.loads(error.read(8192))
+    except (OSError, ValueError, RecursionError):
+        payload = None
+    if isinstance(payload, dict) and payload.get("message") == "Not found or no album.read access":
+        return "Album not found or not shared with the API key's user; check the album ID and access"
+    return "API rejected the request: check album access, configuration and supported Immich version"
+
+
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None  # Never forward API credentials to redirects, including other origins.
@@ -59,16 +69,16 @@ class Transport:
             except HTTPError as error:
                 status = error.code
                 retry_after = error.headers.get("Retry-After")
+                bad_request = bad_request_reason(error) if status == 400 else None
                 error.close()
                 category = {
                     401: "Authentication failed: invalid API key",
                     403: "Authorization failed: check API key scopes and shared album editor access",
                     404: "Resource not found: check album UUID and API base URL (or album access)",
-                    400: "API rejected the request: check configuration and supported Immich version",
                     422: "API rejected the request schema: check Immich API compatibility",
                     429: "Rate limited by server",
                 }.get(status, "HTTP API failure or incompatible endpoint")
-                message = f"{category} (HTTP {status})"
+                message = f"{bad_request or category} (HTTP {status})"
                 transient = status in {408, 425, 429, 500, 502, 503, 504}
                 if not transient:
                     raise RelayError(message) from None
@@ -110,9 +120,12 @@ class Immich:
             self.base += "/api"
 
     def request(self, method, path, body=None):
-        return self.transport.request(
-            method, self.base + path, {"x-api-key": self.user.api_key.get_secret_value()}, body
-        )
+        try:
+            return self.transport.request(
+                method, self.base + path, {"x-api-key": self.user.api_key.get_secret_value()}, body
+            )
+        except RelayError as error:
+            raise RelayError(f"{method} {path}: {error}") from None
 
     def identity(self):
         data = self.request("GET", "/users/me")

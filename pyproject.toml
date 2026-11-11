@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "immich-album-relay"
-version = "0.1.0"
+version = "0.1.1"
 description = "Additive, multi-user Immich album membership relay"
 readme = "README.md"
 requires-python = ">=3.12"

@@ -91,7 +91,7 @@ Automatic detection uses **polling**, independently controlled by
 `polling.enabled`. The inspected Immich workflow SDK does not expose a reliable
 album-membership trigger; upload/tag events are insufficient. No webhook listener
 is exposed. Polls read only configured source albums, fingerprint their actual
-asset IDs, and run only relevant jobs after membership settles for
+asset IDs, and sync the affected sources after membership settles for
 `debounce_seconds`. With an interval of 60 and debounce of 10, a stable new change
 usually runs on the following poll (about 60–120 seconds after the change).
 
@@ -101,17 +101,17 @@ usually runs on the following poll (about 60–120 seconds after the change).
 opt that job out. Startup runs work independently of cron and polling, honor
 `dry_run`, share the normal per-job lock, and log the `startup` trigger. Commands
 such as `validate` and `list-albums` do not trigger a startup run. A cron tick in
-the startup minute is covered by the startup run. Successful startup runs establish
-the polling baseline from a fingerprint taken before execution, avoiding a redundant
-initial polling run while detecting changes made during startup.
+the startup minute is covered by the startup run. Albums that sync successfully
+at startup establish their polling baseline from a fingerprint taken before execution.
+Changes made during startup are detected by later polls.
 
 When startup runs are disabled, the first poll after restart reconciles sources
-after debounce. Successful
-runs checkpoint only in memory; failed/partial runs retry even if sources do not
-change. `reconcile_seconds` forces periodic reconciliation to repair destination
-changes without requiring a source edit. There is no persistent membership cache
-that could hide a missed change. Polling uses one fingerprint per job, so jobs with
-the same sources make independent reads. Large deployments should raise intervals.
+after debounce. An unreadable album is logged with its source user and album, and
+other sources keep polling and syncing. Each source album is checkpointed in
+memory after it syncs to all destinations. Failed syncs retry even if membership
+does not change. `reconcile_seconds` forces periodic reconciliation to repair
+destination changes without requiring a source edit. Jobs with the same sources
+make independent reads. Large deployments should raise intervals.
 
 Cron and polling can coexist. Runs of a job do not overlap; locks also cover
 manual runs that mount the same state volume. A cron tick during an active job is
