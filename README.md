@@ -50,6 +50,29 @@ After reviewing the preview, set `dry_run: false` to enable additions and run
 `docker compose up -d --force-recreate`. Enabled jobs run on container startup/restart
 by default; set `run_on_startup: false` to disable this.
 
+## Optional ntfy notifications
+
+For a topic that requires authentication, put a token with publish access in
+`.env` as `NTFY_TOKEN`. Then reference it in the top-level `ntfy:` section of
+`config.yml`. Setting the variable in `.env` alone does not enable authentication.
+
+```yaml
+ntfy:
+  enabled: true
+  server_url: https://ntfy.sh
+  topic: your-topic
+  token: ${NTFY_TOKEN}
+```
+
+Use your own server URL and topic. For username and password authentication, replace
+the `token:` line with `username: ${NTFY_USERNAME}` and
+`password: ${NTFY_PASSWORD}`, and set both variables in `.env`. A nonempty token
+takes precedence if both methods are configured. Leave the credential fields
+unset only if the topic allows anonymous publishing.
+
+To apply these settings to an existing Compose deployment, run
+`docker compose up -d --force-recreate relay`.
+
 ## Docker run: individual jobs and dry-run
 
 Use the same `.env` and `config.yml` prepared above. The image supports AMD64 and ARM64.

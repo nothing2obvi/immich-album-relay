@@ -55,12 +55,15 @@ logging:
   backup_count: 3
 
 ntfy:
-  enabled: false
+  enabled: false              # Set true and fill in server_url and topic to send notifications.
   server_url: https://ntfy.sh
   topic: ''
-  # token: ${NTFY_TOKEN}       # Bearer token; alternatively username + password.
+  # Credentials in .env are not picked up automatically. Uncomment one method:
+  # token: ${NTFY_TOKEN}       # Set NTFY_TOKEN in .env to a token with publish access.
+  # Or set both NTFY_USERNAME and NTFY_PASSWORD in .env and uncomment both lines:
   # username: ${NTFY_USERNAME}
   # password: ${NTFY_PASSWORD}
+  # A nonempty token takes precedence. Leave these commented for anonymous publishing.
   priority: 3
   triggers: [startup, cron, polling, manual]
   on_success: true
